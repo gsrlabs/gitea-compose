@@ -1,0 +1,322 @@
+#!/bin/bash
+
+# ======================================
+# КОНФИГУРАЦИЯ И ИНИЦИАЛИЗАЦИЯ
+# ======================================
+
+# Цвета для вывода
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m' # No Color
+
+# Загрузка конфигурации из .env
+load_config() {
+    if [ -f ".env" ]; then
+        set -a
+        source .env
+        set +a
+    else
+        echo -e "${RED}❌ Файл .env не найден${NC}"
+        echo -e "${YELLOW}Создайте файл .env на основе .env.example${NC}"
+        exit 1
+    fi
+}
+
+# Функции вывода
+success() { echo -e "${GREEN}✅ $1${NC}"; }
+warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+error()   { echo -e "${RED}❌ $1${NC}"; }
+info()    { echo -e "${BLUE}ℹ️  $1${NC}"; }
+header()  { echo -e "${CYAN}════════════════════════════════════════════════════${NC}"; }
+
+# Получение имени проекта
+get_project_name() {
+    if [ -n "$PROJECT_DISPLAY_NAME" ]; then
+        echo "$PROJECT_DISPLAY_NAME"
+    elif [ -n "$PROJECT_NAME" ]; then
+        echo "$PROJECT_NAME"
+    else
+        echo "проект"
+    fi
+}
+
+PROJECT_NAME_DISPLAY=$(get_project_name)
+
+# ======================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ======================================
+
+# Проверка зависимостей
+check_dependencies() {
+    if ! command -v docker &> /dev/null; then
+        error "Docker не установлен!"
+        exit 1
+    fi
+    
+    if ! $COMPOSE_CMD version &> /dev/null; then
+        error "Docker Compose не установлен или не работает!"
+        exit 1
+    fi
+    
+    success "Зависимости проверены"
+}
+
+# Проверка файла docker-compose.yml
+check_compose_file() {
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        error "Файл $COMPOSE_FILE не найден!"
+        exit 1
+    fi
+    success "Файл $COMPOSE_FILE найден"
+}
+
+# Показать статус контейнеров
+show_status() {
+    header
+    info "Статус контейнеров $PROJECT_NAME_DISPLAY:"
+    echo ""
+    $COMPOSE_CMD ps
+    echo ""
+    
+    # Показать использование диска
+    if [ -d "$DATA_DIR" ]; then
+        echo "📊 Использование диска:"
+        echo "  Gitea данные: $(du -sh "$DATA_DIR" | cut -f1)"
+    fi
+    if [ -d "$POSTGRES_DATA_DIR" ]; then
+        echo "  PostgreSQL: $(du -sh "$POSTGRES_DATA_DIR" | cut -f1)"
+    fi
+    header
+}
+
+# Проверка запущенных контейнеров
+is_running() {
+    $COMPOSE_CMD ps --services --filter "status=running" | grep -q "$1"
+    return $?
+}
+
+# ======================================
+# ОСНОВНЫЕ КОМАНДЫ
+# ======================================
+
+cmd_start() {
+    info "Запуск $PROJECT_NAME_DISPLAY..."
+    check_dependencies
+    check_compose_file
+    
+    $COMPOSE_CMD up -d
+    
+    if [ $? -eq 0 ]; then
+        sleep 3
+        show_status
+        success "$PROJECT_NAME_DISPLAY успешно запущен"
+    else
+        error "Ошибка при запуске $PROJECT_NAME_DISPLAY"
+        $COMPOSE_CMD logs --tail=20
+    fi
+}
+
+cmd_stop() {
+    info "Остановка $PROJECT_NAME_DISPLAY..."
+    $COMPOSE_CMD stop
+    success "$PROJECT_NAME_DISPLAY остановлен"
+}
+
+cmd_restart() {
+    info "Перезапуск $PROJECT_NAME_DISPLAY..."
+    $COMPOSE_CMD restart
+    sleep 2
+    show_status
+    success "$PROJECT_NAME_DISPLAY перезапущен"
+}
+
+cmd_down() {
+    warning "Полная остановка и удаление контейнеров $PROJECT_NAME_DISPLAY..."
+    read -p "Вы уверены? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        $COMPOSE_CMD down
+        success "Контейнеры $PROJECT_NAME_DISPLAY удалены"
+    else
+        info "Операция отменена"
+    fi
+}
+
+cmd_logs() {
+    info "Логи $PROJECT_NAME_DISPLAY (Ctrl+C для выхода)..."
+    $COMPOSE_CMD logs -f --tail=50
+}
+
+cmd_status() {
+    check_dependencies
+    check_compose_file
+    show_status
+}
+
+cmd_backup() {
+    info "Создание резервной копии $PROJECT_NAME_DISPLAY..."
+    
+    # Останавливаем сервисы для согласованного бэкапа
+    warning "Остановка сервисов для согласованного бэкапа..."
+    $COMPOSE_CMD stop
+    
+    # Выполняем бэкап
+    ./scripts/backup.sh
+    
+    # Запускаем сервисы обратно
+    success "Запуск сервисов после бэкапа..."
+    $COMPOSE_CMD start
+}
+
+cmd_restore() {
+    info "Восстановление $PROJECT_NAME_DISPLAY из бэкапа..."
+    
+    if [ -z "$2" ]; then
+        ./scripts/restore.sh
+    else
+        sudo ./scripts/restore.sh "$2"
+    fi
+}
+
+cmd_update() {
+    info "Обновление $PROJECT_NAME_DISPLAY..."
+    
+    # Останавливаем сервисы
+    $COMPOSE_CMD stop
+    
+    # Обновляем образы
+    info "Загрузка новых образов..."
+    $COMPOSE_CMD pull
+    
+    # Пересоздаем контейнеры
+    info "Пересоздание контейнеров..."
+    $COMPOSE_CMD up -d --remove-orphans
+    
+    # Очищаем старые образы
+    info "Очистка старых образов..."
+    docker image prune -f
+    
+    show_status
+    success "$PROJECT_NAME_DISPLAY обновлен"
+}
+
+cmd_shell() {
+    info "Вход в контейнер Gitea..."
+    $COMPOSE_CMD exec server /bin/bash || \
+    $COMPOSE_CMD exec server /bin/sh
+}
+
+cmd_db_shell() {
+    info "Вход в контейнер PostgreSQL..."
+    $COMPOSE_CMD exec db psql -U gitea
+}
+
+# ======================================
+# СПРАВОЧНАЯ ИНФОРМАЦИЯ
+# ======================================
+
+show_help() {
+    header
+    echo -e "${CYAN}    УПРАВЛЕНИЕ СЕРВЕРОМ $PROJECT_NAME_DISPLAY ${NC}"
+    header
+    echo ""
+    echo -e "  ${YELLOW}Основные команды:${NC}"
+    echo -e "    ${GREEN}start${NC}     — Запустить сервер"
+    echo -e "    ${GREEN}stop${NC}      — Остановить сервер"
+    echo -e "    ${GREEN}restart${NC}   — Перезапустить сервер"
+    echo -e "    ${GREEN}down${NC}      — Остановить и удалить контейнеры"
+    echo -e "    ${GREEN}status${NC}    — Показать статус"
+    echo ""
+    echo -e "  ${YELLOW}Логи и отладка:${NC}"
+    echo -e "    ${GREEN}logs${NC}      — Показать логи (реальный времени)"
+    echo -e "    ${GREEN}shell${NC}     — Войти в контейнер"
+    echo -e "    ${GREEN}db-shell${NC}  — Войти в контейнер базы данных"
+    echo ""
+    echo -e "  ${YELLOW}Обслуживание:${NC}"
+    echo -e "    ${GREEN}backup${NC}    — Создать резервную копию"
+    echo -e "    ${GREEN}update${NC}    — Обновить до последней версии"
+    echo ""
+    echo -e "  ${YELLOW}Дополнительно:${NC}"
+    echo -e "    ${GREEN}help${NC}      — Показать эту справку"
+    echo -e "    ${GREEN}config${NC}    — Показать текущую конфигурацию"
+    echo ""
+    header
+    echo -e "${BLUE}Использование: ./scripts/run.sh [команда]${NC}"
+    echo ""
+}
+
+show_config() {
+    header
+    info "Текущая конфигурация:"
+    echo ""
+    echo -e "  ${CYAN}Проект:${NC} $PROJECT_NAME_DISPLAY ($PROJECT_NAME)"
+    echo -e "  ${CYAN}Данные Gitea:${NC} $DATA_DIR"
+    echo -e "  ${CYAN}Данные PostgreSQL:${NC} $POSTGRES_DATA_DIR"
+    echo -e "  ${CYAN}Бэкапы:${NC} $BACKUP_DIR"
+    echo -e "  ${CYAN}Retention:${NC} $BACKUP_RETENTION_DAYS дней"
+    echo ""
+    echo -e "  ${CYAN}Команда Docker:${NC} $COMPOSE_CMD"
+    echo -e "  ${CYAN}Файл compose:${NC} $COMPOSE_FILE"
+    header
+}
+
+# ======================================
+# ОСНОВНАЯ ЛОГИКА
+# ======================================
+
+# Загружаем конфигурацию
+load_config
+
+# Обработка команд
+case "$1" in
+    "start")
+        cmd_start
+        ;;
+    "stop")
+        cmd_stop
+        ;;
+    "restart")
+        cmd_restart
+        ;;
+    "down")
+        cmd_down
+        ;;
+    "logs")
+        cmd_logs
+        ;;
+    "status")
+        cmd_status
+        ;;
+    "backup")
+        cmd_backup
+        ;;
+    "restore")
+        cmd_restore "$2"
+        ;;
+    "update")
+        cmd_update
+        ;;
+    "shell")
+        cmd_shell
+        ;;
+    "db-shell"|"db")
+        cmd_db_shell
+        ;;
+    "config")
+        show_config
+        ;;
+    "help"|"--help"|"-h"|"")
+        show_help
+        ;;
+    *)
+        error "Неизвестная команда: $1"
+        show_help
+        exit 1
+        ;;
+esac
+
+exit 0
