@@ -22,7 +22,8 @@ gitea-compose/
 ├── scripts/              # Скрипты управления
 │   ├── run.sh            # Основной скрипт
 │   ├── backup.sh         # Резервное копирование
-│   └── restore.sh        # Восстановление
+│   ├── restore.sh        # Восстановление
+│   └── setup.sh          # Установка Gitea
 ├── data/                 # Данные Gitea (создается)
 ├── postgres_data/        # Данные PostgreSQL (создается)
 └── backups/              # Архивы бэкапов (создается)
@@ -40,7 +41,7 @@ gitea-compose/
 # 1. Клонируем репозиторий
 cd /home/your/directory/
 git clone https://github.com/gsrlabs/gitea-compose.git gitea
-cd gitea-compose
+cd gitea
 
 # 2. Настраиваем
 chmod +x scripts/setup.sh
@@ -69,7 +70,7 @@ POSTGRES_PASSWORD="STRONG_PASSWORD"
 GITEA_DB_PASSWORD="STRONG_PASSWORD"
 
 # Пути к данным
-PROJECT_DIR="/home/your/directory/gitea-compose"
+PROJECT_DIR="/home/your/directory/gitea"
 ```
 
 > Остальные настройки можно не менять!
@@ -104,7 +105,7 @@ gitea.your-domain.com {
 ./scripts/run.sh restore    # Восстановить данные
 ```
 
-**Вместо ./scripts/run.sh вне директории проекта, можно использовать команду:**
+**Вместо ./scripts/run.sh можно использовать команду (вне директории проекта):**
 
 ```
 gitea-manage
