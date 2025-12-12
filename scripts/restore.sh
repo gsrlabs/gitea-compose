@@ -217,8 +217,8 @@ main() {
 
             if [ -n "$LATEST_BACKUP" ]; then
                 info "Пример восстановления последнего бэкапа:"
-                echo -e "  ${YELLOW}./restore.sh latest${NC}"
-                echo -e "  ${YELLOW}./restore.sh $(basename "$LATEST_BACKUP")${NC}"
+                echo -e "  ${YELLOW}./scripts/restore.sh latest${NC}"
+                echo -e "  ${YELLOW}./scripts/restore.sh $(basename "$LATEST_BACKUP")${NC}"
             else
                 warning "Бэкапы не найдены!"
             fi

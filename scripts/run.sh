@@ -200,14 +200,13 @@ cmd_restore() {
         exit 1
     }
 
-    # Запуск restore.sh с аргументом или без него
+    # Запуск restore.sh через sudo с сохранением каталога
     if [ -z "$2" ]; then
-        sudo "$SCRIPT_DIR/restore.sh"
+        sudo -E bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/restore.sh'"
     else
-        sudo "$SCRIPT_DIR/restore.sh" "$2"
+        sudo -E bash -c "cd '$PROJECT_ROOT' && '$SCRIPT_DIR/restore.sh' '$2'"
     fi
 }
-
 
 cmd_update() {
     info "Обновление $PROJECT_NAME_DISPLAY..."
