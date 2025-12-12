@@ -13,15 +13,22 @@ CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
+# Определяем пути
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+ENV_FILE="$PROJECT_ROOT/.env"
+
 # Загрузка конфигурации из .env
 load_config() {
-    if [ -f ".env" ]; then
+    if [ -f "$ENV_FILE" ]; then
         set -a
-        source .env
+        source "$ENV_FILE"
         set +a
+        success "Конфигурация загружена из $ENV_FILE"
     else
         echo -e "${RED}❌ Файл .env не найден${NC}"
-        echo -e "${YELLOW}Создайте файл .env на основе .env.example${NC}"
+        echo -e "${YELLOW}Ожидаемый путь: $ENV_FILE${NC}"
+        echo -e "${YELLOW}Создайте файл .env на основе .env_example${NC}"
         exit 1
     fi
 }
@@ -44,11 +51,14 @@ get_project_name() {
     fi
 }
 
-PROJECT_NAME_DISPLAY=$(get_project_name)
-
 # ======================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ======================================
+
+# Функция для запуска docker compose в корне проекта
+run_compose() {
+    cd "$PROJECT_ROOT" && $COMPOSE_CMD "$@"
+}
 
 # Проверка зависимостей
 check_dependencies() {
@@ -67,8 +77,8 @@ check_dependencies() {
 
 # Проверка файла docker-compose.yml
 check_compose_file() {
-    if [ ! -f "$COMPOSE_FILE" ]; then
-        error "Файл $COMPOSE_FILE не найден!"
+    if [ ! -f "$PROJECT_ROOT/$COMPOSE_FILE" ]; then
+        error "Файл $COMPOSE_FILE не найден в $PROJECT_ROOT!"
         exit 1
     fi
     success "Файл $COMPOSE_FILE найден"
@@ -79,7 +89,7 @@ show_status() {
     header
     info "Статус контейнеров $PROJECT_NAME_DISPLAY:"
     echo ""
-    $COMPOSE_CMD ps
+    run_compose ps
     echo ""
     
     # Показать использование диска
@@ -95,7 +105,7 @@ show_status() {
 
 # Проверка запущенных контейнеров
 is_running() {
-    $COMPOSE_CMD ps --services --filter "status=running" | grep -q "$1"
+    run_compose ps --services --filter "status=running" | grep -q "$1"
     return $?
 }
 
@@ -108,27 +118,29 @@ cmd_start() {
     check_dependencies
     check_compose_file
     
-    $COMPOSE_CMD up -d
+    run_compose up -d
     
     if [ $? -eq 0 ]; then
         sleep 3
         show_status
         success "$PROJECT_NAME_DISPLAY успешно запущен"
+        info "  🌐 Веб-интерфейс: https://${DOMAIN_NAME}"
+        info "  🔑 SSH: git@${DOMAIN_NAME}:${SSH_PORT}"
     else
         error "Ошибка при запуске $PROJECT_NAME_DISPLAY"
-        $COMPOSE_CMD logs --tail=20
+        run_compose logs --tail=20
     fi
 }
 
 cmd_stop() {
     info "Остановка $PROJECT_NAME_DISPLAY..."
-    $COMPOSE_CMD stop
+    run_compose stop
     success "$PROJECT_NAME_DISPLAY остановлен"
 }
 
 cmd_restart() {
     info "Перезапуск $PROJECT_NAME_DISPLAY..."
-    $COMPOSE_CMD restart
+    run_compose restart
     sleep 2
     show_status
     success "$PROJECT_NAME_DISPLAY перезапущен"
@@ -139,7 +151,7 @@ cmd_down() {
     read -p "Вы уверены? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        $COMPOSE_CMD down
+        run_compose down
         success "Контейнеры $PROJECT_NAME_DISPLAY удалены"
     else
         info "Операция отменена"
@@ -148,7 +160,7 @@ cmd_down() {
 
 cmd_logs() {
     info "Логи $PROJECT_NAME_DISPLAY (Ctrl+C для выхода)..."
-    $COMPOSE_CMD logs -f --tail=50
+    run_compose logs -f --tail=50
 }
 
 cmd_status() {
@@ -162,23 +174,23 @@ cmd_backup() {
     
     # Останавливаем сервисы для согласованного бэкапа
     warning "Остановка сервисов для согласованного бэкапа..."
-    $COMPOSE_CMD stop
+    run_compose stop
     
     # Выполняем бэкап
-    ./scripts/backup.sh
+    $SCRIPT_DIR/backup.sh
     
     # Запускаем сервисы обратно
     success "Запуск сервисов после бэкапа..."
-    $COMPOSE_CMD start
+    run_compose start
 }
 
 cmd_restore() {
     info "Восстановление $PROJECT_NAME_DISPLAY из бэкапа..."
     
     if [ -z "$2" ]; then
-        ./scripts/restore.sh
+        $SCRIPT_DIR/restore.sh
     else
-        sudo ./scripts/restore.sh "$2"
+        sudo $SCRIPT_DIR/restore.sh "$2"
     fi
 }
 
@@ -186,15 +198,15 @@ cmd_update() {
     info "Обновление $PROJECT_NAME_DISPLAY..."
     
     # Останавливаем сервисы
-    $COMPOSE_CMD stop
+    run_compose stop
     
     # Обновляем образы
     info "Загрузка новых образов..."
-    $COMPOSE_CMD pull
+    run_compose pull
     
     # Пересоздаем контейнеры
     info "Пересоздание контейнеров..."
-    $COMPOSE_CMD up -d --remove-orphans
+    run_compose up -d --remove-orphans
     
     # Очищаем старые образы
     info "Очистка старых образов..."
@@ -206,13 +218,13 @@ cmd_update() {
 
 cmd_shell() {
     info "Вход в контейнер Gitea..."
-    $COMPOSE_CMD exec server /bin/bash || \
-    $COMPOSE_CMD exec server /bin/sh
+    run_compose exec server /bin/bash || \
+    run_compose exec server /bin/sh
 }
 
 cmd_db_shell() {
     info "Вход в контейнер PostgreSQL..."
-    $COMPOSE_CMD exec db psql -U gitea
+    run_compose exec db psql -U gitea
 }
 
 # ======================================
@@ -233,11 +245,12 @@ show_help() {
     echo ""
     echo -e "  ${YELLOW}Логи и отладка:${NC}"
     echo -e "    ${GREEN}logs${NC}      — Показать логи (реальный времени)"
-    echo -e "    ${GREEN}shell${NC}     — Войти в контейнер"
-    echo -e "    ${GREEN}db-shell${NC}  — Войти в контейнер базы данных"
+    echo -e "    ${GREEN}shell${NC}     — Войти в контейнер Gitea"
+    echo -e "    ${GREEN}db-shell${NC}  — Войти в контейнер PostgreSQL"
     echo ""
     echo -e "  ${YELLOW}Обслуживание:${NC}"
     echo -e "    ${GREEN}backup${NC}    — Создать резервную копию"
+    echo -e "    ${GREEN}restore${NC}   — Восстановить из бэкапа"
     echo -e "    ${GREEN}update${NC}    — Обновить до последней версии"
     echo ""
     echo -e "  ${YELLOW}Дополнительно:${NC}"
@@ -254,6 +267,8 @@ show_config() {
     info "Текущая конфигурация:"
     echo ""
     echo -e "  ${CYAN}Проект:${NC} $PROJECT_NAME_DISPLAY ($PROJECT_NAME)"
+    echo -e "  ${CYAN}Домен:${NC} $DOMAIN_NAME"
+    echo -e "  ${CYAN}Порт SSH:${NC} $SSH_PORT"
     echo -e "  ${CYAN}Данные Gitea:${NC} $DATA_DIR"
     echo -e "  ${CYAN}Данные PostgreSQL:${NC} $POSTGRES_DATA_DIR"
     echo -e "  ${CYAN}Бэкапы:${NC} $BACKUP_DIR"
@@ -270,6 +285,9 @@ show_config() {
 
 # Загружаем конфигурацию
 load_config
+
+# Определяем отображаемое имя проекта ПОСЛЕ загрузки конфигурации
+PROJECT_NAME_DISPLAY=$(get_project_name)
 
 # Обработка команд
 case "$1" in

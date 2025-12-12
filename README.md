@@ -13,7 +13,7 @@
 
 ### Структура
 ```
-gitea-compose/
+gitea/
 ├── docker-compose.yml    # Docker конфигурация
 ├── .env                  # Конфигурация (создается из .env_example)
 ├── .env_example          # Шаблон конфигурации

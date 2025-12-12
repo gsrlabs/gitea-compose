@@ -19,16 +19,27 @@ error()   { echo -e "${RED}❌ $1${NC}"; }
 info()    { echo -e "${BLUE}ℹ️  $1${NC}"; }
 header()  { echo -e "${CYAN}════════════════════════════════════════════════════${NC}"; }
 
+# Определяем пути
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+ENV_FILE="$PROJECT_ROOT/.env"
+
 # Загрузка конфигурации
 load_config() {
-    if [ -f "../.env" ]; then
+    if [ -f "$ENV_FILE" ]; then
         set -a
-        source ../.env
+        source "$ENV_FILE"
         set +a
+        success "Конфигурация загружена из $ENV_FILE"
     else
-        error "Файл .env не найден!"
+        error "Файл .env не найден: $ENV_FILE"
         exit 1
     fi
+}
+
+# Функция для запуска docker compose в корне проекта
+run_compose() {
+    cd "$PROJECT_ROOT" && $COMPOSE_CMD "$@"
 }
 
 load_config
@@ -38,7 +49,6 @@ BACKUP_PATH="${BACKUP_DIR}"
 PROJECT_NAME="${PROJECT_NAME:-gitea}"
 DATA_DIR="${DATA_DIR}"
 POSTGRES_DATA_DIR="${POSTGRES_DATA_DIR}"
-COMPOSE_CMD="${COMPOSE_CMD:-docker compose}"
 
 # ======================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -107,8 +117,8 @@ create_pre_restore_backup() {
     fi
     
     # Копируем конфигурацию
-    cp -p ../docker-compose.yml "$temp_backup_dir/" 2>/dev/null
-    cp -p ../.env "$temp_backup_dir/" 2>/dev/null
+    cp -p "$PROJECT_ROOT/docker-compose.yml" "$temp_backup_dir/" 2>/dev/null
+    cp -p "$ENV_FILE" "$temp_backup_dir/" 2>/dev/null
     
     success "Текущее состояние сохранено в: $temp_backup_dir"
     echo "$temp_backup_dir"
@@ -194,7 +204,7 @@ restore_data() {
     
     # 1. Останавливаем контейнеры
     info "Остановка контейнеров..."
-    cd "$(dirname "$0")/.." && $COMPOSE_CMD down
+    run_compose down
     
     # 2. Удаляем текущие данные (с созданием бэкапа)
     if [ -d "$DATA_DIR" ]; then
@@ -237,7 +247,7 @@ restore_data() {
     
     # 5. Запускаем контейнеры
     info "Запуск контейнеров..."
-    $COMPOSE_CMD up -d
+    run_compose up -d
     
     success "Данные восстановлены"
     return 0
@@ -250,13 +260,13 @@ verify_restoration() {
     sleep 10  # Даем время контейнерам запуститься
     
     # Проверяем статус контейнеров
-    local status=$($COMPOSE_CMD ps --services --filter "status=running" | wc -l)
+    local status=$(run_compose ps --services --filter "status=running" | wc -l)
     
     if [ "$status" -ge 2 ]; then
         success "Все контейнеры запущены"
     else
         warning "Не все контейнеры запущены"
-        $COMPOSE_CMD ps
+        run_compose ps
     fi
     
     # Проверяем доступность Gitea
@@ -427,7 +437,7 @@ main() {
     
     # Показываем статус контейнеров
     info "Текущий статус контейнеров:"
-    $COMPOSE_CMD ps
+    run_compose ps
     echo ""
 }
 
