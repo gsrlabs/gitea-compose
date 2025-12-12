@@ -224,7 +224,7 @@ cmd_update() {
 }
 
 cmd_shell() {
-    info "Вход в контейнер Gitea..."
+    info "Вход в контейнер $PROJECT_NAME_DISPLAY..."
     run_compose exec server /bin/bash || \
     run_compose exec server /bin/sh
 }
@@ -266,6 +266,7 @@ show_help() {
     echo ""
     header
     echo -e "${BLUE}Использование: ./scripts/run.sh [команда]${NC}"
+    echo -e "${BLUE}Использование: $PROJECT_NAME-manаge [команда]${NC}"
     echo ""
 }
 

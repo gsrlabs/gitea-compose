@@ -19,8 +19,15 @@ error()   { echo -e "${RED}❌ $1${NC}"; }
 info()    { echo -e "${BLUE}ℹ️  $1${NC}"; }
 header()  { echo -e "${CYAN}════════════════════════════════════════════════════${NC}"; }
 
-# Определяем пути
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# Корректное определение пути, даже если скрипт запущен через симлинк
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 ENV_FILE="$PROJECT_ROOT/.env"
 

@@ -1,1 +1,6 @@
 my_config
+.env
+data
+postgres_data
+setup.log
+backups
