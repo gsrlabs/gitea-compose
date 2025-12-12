@@ -202,10 +202,31 @@ main() {
     local backup_file="$1"
 
     if [ -z "$backup_file" ]; then
-        error "Не указан файл бэкапа!"
-        show_available_backups
+    error "Не указан файл бэкапа!"
+    echo ""
+
+    # Показываем список доступных
+        if show_available_backups; then
+            echo ""
+
+        # Находим последний бэкап
+            LATEST_BACKUP=$(find "$BACKUP_DIR" \
+                -name "${PROJECT_NAME}_backup_*.tar.gz" \
+                -type f -printf "%T@ %p\n" 2>/dev/null \
+                | sort -nr | head -1 | cut -d' ' -f2-)
+
+            if [ -n "$LATEST_BACKUP" ]; then
+                info "Пример восстановления последнего бэкапа:"
+                echo -e "  ${YELLOW}./restore.sh latest${NC}"
+                echo -e "  ${YELLOW}./restore.sh $(basename "$LATEST_BACKUP")${NC}"
+            else
+                warning "Бэкапы не найдены!"
+            fi
+        fi
+
         exit 1
     fi
+
 
     if [ "$backup_file" = "latest" ]; then
         backup_file=$(find "$BACKUP_DIR" -name "${PROJECT_NAME}_backup_*.tar.gz" -type f -printf "%T@ %p\n" | sort -nr | head -1 | cut -d' ' -f2-)

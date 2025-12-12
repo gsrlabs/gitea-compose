@@ -193,13 +193,21 @@ cmd_backup() {
 
 cmd_restore() {
     info "Восстановление $PROJECT_NAME_DISPLAY из бэкапа..."
-    
+
+    # Переход в корневую директорию проекта
+    cd "$PROJECT_ROOT" || {
+        error "Не удалось перейти в директорию проекта: $PROJECT_ROOT"
+        exit 1
+    }
+
+    # Запуск restore.sh с аргументом или без него
     if [ -z "$2" ]; then
-        $SCRIPT_DIR/restore.sh
+        sudo "$SCRIPT_DIR/restore.sh"
     else
-        sudo $SCRIPT_DIR/restore.sh "$2"
+        sudo "$SCRIPT_DIR/restore.sh" "$2"
     fi
 }
+
 
 cmd_update() {
     info "Обновление $PROJECT_NAME_DISPLAY..."
@@ -248,7 +256,7 @@ show_help() {
     echo -e "    ${GREEN}stop${NC}      — Остановить сервер"
     echo -e "    ${GREEN}restart${NC}   — Перезапустить сервер"
     echo -e "    ${GREEN}down${NC}      — Остановить и удалить контейнеры"
-    echo -e "    ${GREEN}status${NC}    — Показать статус"
+    echo -e "    ${GREEN}status${NC}    — Показать статус (sudo)"
     echo ""
     echo -e "  ${YELLOW}Логи и отладка:${NC}"
     echo -e "    ${GREEN}logs${NC}      — Показать логи"
