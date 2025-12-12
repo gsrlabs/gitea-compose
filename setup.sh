@@ -182,7 +182,7 @@ show_summary() {
     echo -e "  ${GREEN}${MANAGE_CMD} stop${NC}"
     echo -e "  ${GREEN}${MANAGE_CMD} status${NC}"
     echo -e "  ${GREEN}${MANAGE_CMD} backup${NC}"
-    echo -e "  ${GREEN} или ./scripts/run.sh [команда]" в корневой директории.
+    echo -e "  ${GREEN}или в корневой директории: ./scripts/run.sh [команда]${NC}"
 
     echo ""
     echo -e "${CYAN}Проект:${NC} ${PROJECT_DISPLAY_NAME}"

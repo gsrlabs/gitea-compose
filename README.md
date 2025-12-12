@@ -44,8 +44,8 @@ git clone https://github.com/gsrlabs/gitea-compose.git gitea
 cd gitea
 
 # 2. Настраиваем
-chmod +x scripts/setup.sh
-./scripts/setup.sh
+chmod +x setup.sh
+./setup.sh
 
 # 3. Редактируем .env
 nano .env
