@@ -39,7 +39,7 @@ gitea/
 
 ```bash
 # 1. Клонируем репозиторий
-cd /home/your/directory/
+cd /home/your/directory/ # замените на вашу директорию
 git clone https://github.com/gsrlabs/gitea-compose.git gitea
 cd gitea
 
@@ -118,7 +118,7 @@ gitea-manage
 ./scripts/run.sh backup
 
 # Автоматические бэкапы (добавьте в cron)
-0 3 * * * cd /home/gsr/hub/gitea && ./scripts/run.sh backup
+0 3 * * * cd /home/your/directory/gitea && ./scripts/run.sh backup
 ```
 
 ### Обновление Gitea
@@ -126,6 +126,11 @@ gitea-manage
 ./scripts/run.sh update
 ```
 Скрипт обновит образы Docker и пересоздаст контейнеры с сохранением данных.
+
+## 🏃Gitea Act Runner
+
+Для настройка CI/CD контура необходимо настроить Gitea Act Runner, для этого вам необходимо перейти по ссылке ниже:
+https://github.com/gsrlabs/gitea-runner
 
 ## 🔐 Безопасность
 
@@ -181,4 +186,3 @@ Pull requests приветствуются! Для серьезных измен
 ## 📞 Поддержка
 - Issues: https://github.com/gsrlabs/gitea-compose/issues
 - Документация Gitea: https://docs.gitea.io
-
