@@ -49,15 +49,7 @@ chmod +x setup.sh
 
 # 3. Редактируем .env
 nano .env
-
-# 4. Запускаем Gitea
-./scripts/run.sh start
-
-# 5. Проверяем
-./scripts/run.sh status
 ```
-
-### **Настройте переменные окружения**
 
 Основные настройки хранятся в `.env`:
 
@@ -74,6 +66,18 @@ PROJECT_DIR="/home/your/directory/gitea"
 ```
 
 > Остальные настройки можно не менять!
+
+Запуск Gitea:
+
+```bash
+# 4. Запускаем Gitea
+./scripts/run.sh start
+
+# 5. Проверяем
+./scripts/run.sh status
+```
+
+
 
 ### Сетевая архитектура
 
@@ -129,8 +133,64 @@ gitea-manage
 
 ## 🏃Gitea Act Runner
 
-Для настройка CI/CD контура необходимо настроить Gitea Act Runner, для этого вам необходимо перейти по ссылке ниже:
+Для настройки CI/CD контура необходимо настроить Gitea Act Runner, для этого вам нужно перейти по ссылке ниже:
 https://github.com/gsrlabs/gitea-runner
+
+## 📦 Container Registry - Работа с Docker образами
+### Аутентификация:
+```bash
+# Вход в реестр контейнеров Gitea
+docker login gitea.your-domain.com
+
+# Используйте:
+# - Логин: ваш username в Gitea
+# - Пароль: ваш пароль ИЛИ Personal Access Token (если включена 2FA)
+```
+### Формат образов:
+```bash
+gitea.your-domain.com/{user}/{image-name}:{teg}
+```
+Примеры корректных имен:
+
+- gitea.your-domain.com/user/my-app:latest
+- gitea.your-domain.com/user/backend-api:v1.2.3
+- gitea.your-domain.com/myorg/nginx:stable
+
+### 📤 Push образа в Registry
+**Сборка образа с правильным именем:**
+
+```bash
+# Из директории с Dockerfile
+docker build -t gitea.your-domain.com/user/my-app:latest .
+
+# Или тегирование существующего образа
+docker tag my-local-image:latest gitea.your-domain.com/user/my-app:latest
+```
+
+**Отправка образа:**
+```bash
+docker push gitea.your-domain.com/user/my-app:latest
+```
+
+### 📥 Pull образа из Registry
+```bash
+# Загрузка образа
+docker pull gitea.your-domain.com/user/my-app:latest
+
+# Использование в docker-compose.yml
+# services:
+#   app:
+#     image: gitea.your-domain.com/user/my-app:latest
+```
+
+### 🗑️ Удаление образов
+```bash
+# Удаление локального образа
+docker rmi gitea.your-domain.com/user/my-app:latest
+
+# Удаление из registry (через интерфейс Gitea)
+# Перейдите в Package → выберите образ → Delete
+```
 
 ## 🔐 Безопасность
 
